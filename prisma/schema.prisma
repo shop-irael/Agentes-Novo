@@ -1,0 +1,200 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // ou "mysql" / "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Modelo de usuário (NextAuth)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  plano         String    @default("basico") // basico, intermediario, avancado, personalizado
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relacionamentos
+  accounts              Account[]
+  sessions              Session[]
+  agentes               Agente[]
+  contatos              Contato[]
+  conversas             Conversa[]
+  configuracoesChatVolt ConfiguracaoChatVolt[]
+  leads                 Lead[]
+  buscasLead            BuscaLead[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Modelo de Agente
+model Agente {
+  id     String @id @default(cuid())
+  nome   String
+  tipo   String // atendimento, vendas, suporte, leads
+  status String @default("inativo") // ativo, inativo, pausado
+
+  // Configurações do agente
+  configuracoes Json? // JSON para flexibilidade
+  estatisticas  Json? // JSON com métricas
+
+  // Relacionamentos
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversas Conversa[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agentes")
+}
+
+// Modelo de Contato
+model Contato {
+  id       String   @id @default(cuid())
+  nome     String
+  email    String?
+  telefone String?
+  origem   String   @default("manual") // manual, chatvolt, importacao
+  tags     String[] @default([])
+  
+  // Relacionamentos
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contatos")
+}
+
+// Modelo de Conversa
+model Conversa {
+  id          String @id @default(cuid())
+  clienteNome String
+  telefone    String?
+  email       String?
+  status      String @default("ativa") // ativa, encerrada, pausada
+  
+  // Metadados da conversa
+  origem      String? // chatvolt, whatsapp, manual
+  chatvoltId  String? // ID da conversa no ChatVolt
+  mensagens   Json?   // Array de mensagens
+  
+  // Relacionamentos
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agenteId String?
+  agente   Agente? @relation(fields: [agenteId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("conversas")
+}
+
+// Configuração do ChatVolt por usuário
+model ConfiguracaoChatVolt {
+  id            String  @id @default(cuid())
+  apiKey        String
+  orgId         String
+  webhookSecret String?
+  ativo         Boolean @default(true)
+
+  // Relacionamentos
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, orgId])
+  @@map("configuracoes_chatvolt")
+}
+
+// Modelo para Leads (funcionalidade futura)
+model Lead {
+  id       String   @id @default(cuid())
+  nome     String
+  email    String?
+  telefone String?
+  empresa  String?
+  website  String?
+  origem   String   @default("manual")
+  status   String   @default("novo") // novo, contatado, convertido, descartado
+  tags     String[] @default([])
+  notas    String?
+
+  // Relacionamentos
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("leads")
+}
+
+// Modelo para Buscas de Lead (funcionalidade futura)
+model BuscaLead {
+  id                   String   @id @default(cuid())
+  nome                 String
+  palavrasChave        String[] @default([])
+  localizacao          String?
+  setor                String?
+  quantidadeResultados Int      @default(100)
+  status               String   @default("ativo") // ativo, pausado, concluido
+  ultimaExecucao       DateTime?
+
+  // Relacionamentos
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("buscas_lead")
+}
+
